@@ -1,0 +1,29 @@
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/**/*.pyc
+.pytest_cache/
+backend/.pytest-tmp/
+backend/build/
+backend/dist/
+
+# Local data and secrets
+backend/.env
+data/*.db
+data/*.db-*
+data/*.log
+backups/
+
+# Local copyrighted study materials; keep them off GitHub
+参考资料/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

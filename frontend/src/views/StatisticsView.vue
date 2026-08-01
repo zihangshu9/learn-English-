@@ -1,0 +1,1 @@
+<template><div class="page empty-page"><p class="eyebrow">Progress</p><h1 class="page-title">学习统计</h1><section class="empty-panel panel"><h2 class="section-title">从今天开始积累</h2><p>完成学习任务后，这里会展示学习时长、词汇掌握量、真题正确率与最近七天趋势。</p></section></div></template>

@@ -1,0 +1,1 @@
+<template><div class="page empty-page"><p class="eyebrow">Mistake notebook</p><h1 class="page-title">错题本</h1><section class="empty-panel panel"><h2 class="section-title">暂时没有错题</h2><p>做错的题目会自动来到这里。你可以记录错误原因，并使用 DeepSeek 获得针对当前答案的个性化解析。</p><button class="primary-button">去做一套真题</button></section></div></template>

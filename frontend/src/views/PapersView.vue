@@ -1,0 +1,1 @@
+<template><div class="page empty-page"><p class="eyebrow">Past papers</p><h1 class="page-title">历年真题</h1><section class="empty-panel panel"><h2 class="section-title">题库正在等待导入</h2><p>这里将按照年份、月份和套卷展示真题，并提供阅读答题与听力播放。下一阶段会把现有PDF和MP3整理成可交互题库。</p></section></div></template>
