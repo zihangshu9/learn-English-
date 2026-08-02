@@ -7,6 +7,8 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Iterator
 
+from .lesson_content import LESSON_SEED
+
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -42,6 +44,32 @@ CREATE TABLE IF NOT EXISTS word_progress (
 CREATE TABLE IF NOT EXISTS word_review_logs (
  id INTEGER PRIMARY KEY AUTOINCREMENT, word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
  result TEXT NOT NULL, review_mode TEXT NOT NULL DEFAULT 'card', response_seconds INTEGER, reviewed_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS lessons (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, unit_number INTEGER NOT NULL, lesson_number INTEGER NOT NULL,
+ title TEXT NOT NULL, subtitle TEXT NOT NULL, level TEXT NOT NULL, objectives_json TEXT NOT NULL,
+ estimated_minutes INTEGER NOT NULL DEFAULT 15, sort_order INTEGER NOT NULL DEFAULT 0,
+ UNIQUE(unit_number,lesson_number)
+);
+CREATE TABLE IF NOT EXISTS lesson_sections (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+ section_type TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, translation TEXT NOT NULL,
+ sort_order INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS lesson_vocabulary (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+ word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE, phonetic TEXT, part_of_speech TEXT,
+ meaning TEXT NOT NULL, example TEXT NOT NULL, example_translation TEXT NOT NULL,
+ sort_order INTEGER NOT NULL DEFAULT 0, UNIQUE(lesson_id,word_id)
+);
+CREATE TABLE IF NOT EXISTS lesson_questions (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+ question TEXT NOT NULL, options_json TEXT NOT NULL, correct_answer TEXT NOT NULL,
+ explanation TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS lesson_progress (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, lesson_id INTEGER NOT NULL UNIQUE REFERENCES lessons(id) ON DELETE CASCADE,
+ status TEXT NOT NULL DEFAULT 'not_started', score INTEGER, completed_at TEXT
 );
 CREATE TABLE IF NOT EXISTS papers (
  id INTEGER PRIMARY KEY AUTOINCREMENT, level TEXT NOT NULL DEFAULT 'CET4', year INTEGER NOT NULL,
@@ -89,6 +117,7 @@ CREATE TABLE IF NOT EXISTS study_sessions (
 CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_tasks_plan_date ON daily_tasks(plan_id,task_date);
 CREATE INDEX IF NOT EXISTS idx_word_progress_review ON word_progress(next_review_at);
+CREATE INDEX IF NOT EXISTS idx_lessons_order ON lessons(unit_number,lesson_number);
 CREATE INDEX IF NOT EXISTS idx_attempts_question ON question_attempts(question_id);
 CREATE INDEX IF NOT EXISTS idx_mistakes_review ON mistakes(status,next_review_at);
 """
@@ -118,6 +147,7 @@ class Database:
             connection.executescript(SCHEMA)
             connection.execute("INSERT OR REPLACE INTO schema_meta(key,value) VALUES('version','1')")
             self._seed_default_plan(connection)
+            self._seed_lesson(connection)
             connection.execute("PRAGMA optimize")
 
     def _seed_default_plan(self, connection: sqlite3.Connection) -> None:
@@ -145,6 +175,51 @@ class Database:
                 plan_id,task_date,title,task_type,target_count,estimated_minutes,created_at
                 ) VALUES(?,?,?,?,?,?,?)""",
                 (plan_id, today.isoformat(), title, task_type, count, minutes, now),
+            )
+
+    def _seed_lesson(self, connection: sqlite3.Connection) -> None:
+        lesson = LESSON_SEED
+        cursor = connection.execute(
+            """INSERT INTO lessons(unit_number,lesson_number,title,subtitle,level,objectives_json,estimated_minutes)
+            VALUES(?,?,?,?,?,?,?) ON CONFLICT(unit_number,lesson_number) DO UPDATE SET
+            title=excluded.title,subtitle=excluded.subtitle,level=excluded.level,
+            objectives_json=excluded.objectives_json,estimated_minutes=excluded.estimated_minutes
+            RETURNING id""",
+            (lesson["unit_number"], lesson["lesson_number"], lesson["title"], lesson["subtitle"],
+             lesson["level"], json.dumps(lesson["objectives"], ensure_ascii=False), lesson["estimated_minutes"]),
+        )
+        lesson_id = cursor.fetchone()[0]
+        connection.execute("DELETE FROM lesson_sections WHERE lesson_id=?", (lesson_id,))
+        connection.execute("DELETE FROM lesson_questions WHERE lesson_id=?", (lesson_id,))
+        connection.execute("DELETE FROM lesson_vocabulary WHERE lesson_id=?", (lesson_id,))
+        for index, section in enumerate(lesson["sections"], 1):
+            connection.execute(
+                """INSERT INTO lesson_sections(lesson_id,section_type,title,content,translation,sort_order)
+                VALUES(?,?,?,?,?,?)""",
+                (lesson_id, section["section_type"], section["title"], section["content"],
+                 section["translation"], index),
+            )
+        now = datetime.now().isoformat(timespec="seconds")
+        for index, item in enumerate(lesson["vocabulary"], 1):
+            word, phonetic, part_of_speech, meaning, example, example_translation = item
+            word_id = connection.execute(
+                """INSERT INTO words(word,phonetic,meaning,part_of_speech,example,example_translation,level,source,created_at)
+                VALUES(?,?,?,?,?,?,'FOUNDATION','lesson:1',?) ON CONFLICT(word) DO UPDATE SET
+                phonetic=excluded.phonetic,meaning=excluded.meaning,part_of_speech=excluded.part_of_speech,
+                example=excluded.example,example_translation=excluded.example_translation RETURNING id""",
+                (word, phonetic, meaning, part_of_speech, example, example_translation, now),
+            ).fetchone()[0]
+            connection.execute(
+                """INSERT INTO lesson_vocabulary(lesson_id,word_id,phonetic,part_of_speech,meaning,
+                example,example_translation,sort_order) VALUES(?,?,?,?,?,?,?,?)""",
+                (lesson_id, word_id, phonetic, part_of_speech, meaning, example, example_translation, index),
+            )
+        for index, question in enumerate(lesson["questions"], 1):
+            connection.execute(
+                """INSERT INTO lesson_questions(lesson_id,question,options_json,correct_answer,explanation,sort_order)
+                VALUES(?,?,?,?,?,?)""",
+                (lesson_id, question["question"], json.dumps(question["options"], ensure_ascii=False),
+                 question["correct_answer"], question["explanation"], index),
             )
 
     def dashboard(self) -> dict:
@@ -218,8 +293,13 @@ class Database:
                 """SELECT w.*, COALESCE(p.status,'unlearned') status,
                 COALESCE(p.review_count,0) review_count FROM words w
                 LEFT JOIN word_progress p ON p.word_id=w.id
+                LEFT JOIN (
+                    SELECT word_id,MIN(lesson_id) lesson_id,MIN(sort_order) sort_order
+                    FROM lesson_vocabulary GROUP BY word_id
+                ) lv ON lv.word_id=w.id
                 WHERE p.word_id IS NULL OR p.status='unlearned'
-                ORDER BY w.frequency DESC, w.id LIMIT ?""",
+                ORDER BY CASE WHEN lv.word_id IS NULL THEN 1 ELSE 0 END,
+                lv.lesson_id,lv.sort_order,w.frequency DESC,w.id LIMIT ?""",
                 (remaining,),
             ).fetchall() if remaining else []
         rows = [*due, *new]
@@ -277,6 +357,78 @@ class Database:
             )
         return {"word_id": word_id, "status": status, "familiarity": familiarity,
                 "interval_days": interval, "next_review_at": next_review.isoformat(timespec="seconds")}
+
+    def lesson(self, lesson_id: int) -> dict:
+        with self.connect() as connection:
+            lesson = connection.execute("SELECT * FROM lessons WHERE id=?", (lesson_id,)).fetchone()
+            if not lesson:
+                raise ValueError("课程不存在")
+            progress = connection.execute(
+                "SELECT * FROM lesson_progress WHERE lesson_id=?", (lesson_id,)
+            ).fetchone()
+            sections = connection.execute(
+                "SELECT id,section_type,title,content,translation FROM lesson_sections WHERE lesson_id=? ORDER BY sort_order",
+                (lesson_id,),
+            ).fetchall()
+            vocabulary = connection.execute(
+                """SELECT w.word,lv.phonetic,lv.part_of_speech,lv.meaning,lv.example,lv.example_translation
+                FROM lesson_vocabulary lv JOIN words w ON w.id=lv.word_id
+                WHERE lv.lesson_id=? ORDER BY lv.sort_order""",
+                (lesson_id,),
+            ).fetchall()
+            questions = connection.execute(
+                "SELECT id,question,options_json,correct_answer,explanation FROM lesson_questions WHERE lesson_id=? ORDER BY sort_order",
+                (lesson_id,),
+            ).fetchall()
+        return {
+            "id": lesson["id"], "unit_number": lesson["unit_number"],
+            "lesson_number": lesson["lesson_number"], "title": lesson["title"],
+            "subtitle": lesson["subtitle"], "level": lesson["level"],
+            "objectives": json.loads(lesson["objectives_json"]),
+            "estimated_minutes": lesson["estimated_minutes"],
+            "completed": bool(progress and progress["status"] == "completed"),
+            "score": progress["score"] if progress else None,
+            "sections": [dict(row) for row in sections],
+            "vocabulary": [dict(row) for row in vocabulary],
+            "questions": [{**dict(row), "options": json.loads(row["options_json"])} | {"options_json": None}
+                          for row in questions],
+        }
+
+    def complete_lesson(self, lesson_id: int, answers: dict[str, str]) -> dict:
+        now = datetime.now().isoformat(timespec="seconds")
+        with self.connect() as connection:
+            lesson = connection.execute("SELECT * FROM lessons WHERE id=?", (lesson_id,)).fetchone()
+            if not lesson:
+                raise ValueError("课程不存在")
+            questions = connection.execute(
+                "SELECT id,correct_answer FROM lesson_questions WHERE lesson_id=?", (lesson_id,)
+            ).fetchall()
+            correct_count = sum(answers.get(str(row["id"])) == row["correct_answer"] for row in questions)
+            score = round(correct_count * 100 / len(questions)) if questions else 100
+            previous = connection.execute(
+                "SELECT status FROM lesson_progress WHERE lesson_id=?", (lesson_id,)
+            ).fetchone()
+            connection.execute(
+                """INSERT INTO lesson_progress(lesson_id,status,score,completed_at) VALUES(?,'completed',?,?)
+                ON CONFLICT(lesson_id) DO UPDATE SET status='completed',score=excluded.score,
+                completed_at=excluded.completed_at""",
+                (lesson_id, score, now),
+            )
+            if not previous or previous["status"] != "completed":
+                connection.execute(
+                    """UPDATE daily_tasks SET completed_count=MIN(completed_count+1,target_count),
+                    status=CASE WHEN completed_count+1>=target_count THEN 'completed' ELSE 'in_progress' END,
+                    completed_at=CASE WHEN completed_count+1>=target_count THEN ? ELSE completed_at END
+                    WHERE task_date=? AND task_type='reading'""",
+                    (now, date.today().isoformat()),
+                )
+                connection.execute(
+                    """INSERT INTO study_sessions(task_type,reference_id,started_at,ended_at,active_seconds,
+                    completed_count,correct_count) VALUES('reading',?,?,?,?,1,?)""",
+                    (lesson_id, now, now, lesson["estimated_minutes"] * 60, correct_count),
+                )
+        return {"lesson_id": lesson_id, "score": score, "correct_count": correct_count,
+                "question_count": len(questions), "completed": True}
 
     @staticmethod
     def _study_streak(connection: sqlite3.Connection, today: date) -> int:

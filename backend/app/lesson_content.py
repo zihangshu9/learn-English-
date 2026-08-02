@@ -1,0 +1,55 @@
+LESSON_SEED = {
+    "unit_number": 1,
+    "lesson_number": 1,
+    "title": "A Small Plan That Works",
+    "subtitle": "从一个能坚持的小计划开始",
+    "level": "foundation-1",
+    "estimated_minutes": 18,
+    "objectives": ["读懂关于学习计划的简短对话", "理解短而稳定的学习为什么有效", "掌握本课 10 个核心词"],
+    "sections": [
+        {
+            "section_type": "dialogue",
+            "title": "A Better Way to Learn",
+            "content": "Mia: You look tired, Leo. Did you study late again?\n\nLeo: Yes. I planned to learn fifty words, but I stopped after ten.\n\nMia: Fifty is a heavy goal for one evening. Why not begin with fifteen?\n\nLeo: That sounds possible, but I often forget them the next day.\n\nMia: Then review them in short sessions. Read a little in the morning and test yourself at night.\n\nLeo: So the key is a regular routine, not one long study session?\n\nMia: Exactly. A small plan you can follow is better than a perfect plan you give up.",
+            "translation": "米娅：你看起来很累，利奥。你昨晚又学到很晚吗？\n\n利奥：是的。我原计划学五十个单词，但学了十个就停下了。\n\n米娅：一个晚上学五十个，目标太重了。为什么不从十五个开始呢？\n\n利奥：听起来可行，但我经常第二天就忘了。\n\n米娅：那就用短时间多次复习。早上读一点，晚上再测试自己。\n\n利奥：所以关键是规律的习惯，而不是一次学很久？\n\n米娅：没错。一个你能坚持的小计划，比一个最终放弃的完美计划更好。",
+        },
+        {
+            "section_type": "reading",
+            "title": "Small Steps, Real Progress",
+            "content": "At the beginning of a new term, many students make ambitious plans. They want to memorize hundreds of words, read difficult books, and study for several hours every day. The plan feels exciting at first, but it is often too hard to follow. After a few busy days, the student misses one study session and may stop completely.\n\nA smaller routine can work better. Choose a clear goal that fits your day. For example, learn fifteen useful words, read one short passage, and spend five minutes reviewing yesterday's work. These tasks may look simple, but doing them regularly creates real progress.\n\nDo not wait for a perfect day. Begin with the time and energy you have. When the routine becomes easy, add a little more. Learning a language is not one great jump. It is a long path made of small steps.",
+            "translation": "新学期开始时，许多学生都会制定雄心勃勃的计划。他们想记住数百个单词、阅读很难的书，并且每天学习几个小时。计划一开始令人兴奋，但往往很难坚持。忙了几天以后，学生漏掉一次学习，可能就彻底停下来了。\n\n较小的日常安排反而可能更有效。选择一个适合当天情况的明确目标。例如，学习十五个实用单词，阅读一篇短文，再花五分钟复习昨天的内容。这些任务看起来简单，但规律地完成会带来真正的进步。\n\n不要等待完美的一天。用你现在拥有的时间和精力开始。当这个习惯变得轻松时，再增加一点。学习语言不是一次巨大的跳跃，而是一条由许多小步组成的长路。",
+        },
+    ],
+    "vocabulary": [
+        ("plan", "/plæn/", "n./v.", "计划；打算", "make a study plan", "制定学习计划"),
+        ("goal", "/ɡəʊl/", "n.", "目标", "a clear goal", "一个明确的目标"),
+        ("possible", "/ˈpɒsəbl/", "adj.", "可能的；可做到的", "That sounds possible.", "那听起来是可行的。"),
+        ("review", "/rɪˈvjuː/", "v./n.", "复习；回顾", "review yesterday's words", "复习昨天的单词"),
+        ("session", "/ˈseʃn/", "n.", "一段学习或活动时间", "a short study session", "一段短时间的学习"),
+        ("regular", "/ˈreɡjələ(r)/", "adj.", "规律的；定期的", "regular practice", "规律练习"),
+        ("routine", "/ruːˈtiːn/", "n.", "日常安排；惯例", "a daily routine", "日常安排"),
+        ("follow", "/ˈfɒləʊ/", "v.", "遵循；坚持执行", "follow the plan", "按照计划执行"),
+        ("improve", "/ɪmˈpruːv/", "v.", "改善；提高", "improve your English", "提高你的英语"),
+        ("progress", "/ˈprəʊɡres/", "n.", "进步；进展", "make real progress", "取得真正的进步"),
+    ],
+    "questions": [
+        {
+            "question": "Why did Leo stop after ten words?",
+            "options": {"A": "He did not like English.", "B": "His goal for one evening was too heavy.", "C": "He had already learned all the words."},
+            "correct_answer": "B",
+            "explanation": "Leo planned to learn fifty words in one evening. Mia points out that this goal is too heavy.",
+        },
+        {
+            "question": "What does Mia suggest?",
+            "options": {"A": "Using short review sessions.", "B": "Waiting for a free weekend.", "C": "Learning fifty words every night."},
+            "correct_answer": "A",
+            "explanation": "Mia recommends short sessions: read in the morning and test yourself at night.",
+        },
+        {
+            "question": "What is the main idea of the reading?",
+            "options": {"A": "Only ambitious plans lead to success.", "B": "Language learning should always be difficult.", "C": "Small, regular steps can create real progress."},
+            "correct_answer": "C",
+            "explanation": "The passage contrasts plans that are too large with a smaller routine that can be followed consistently.",
+        },
+    ],
+}

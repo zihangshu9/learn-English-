@@ -95,3 +95,68 @@ export async function reviewWord(wordId: number, result: 'unknown' | 'fuzzy' | '
   })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
 }
+
+export interface LessonSection {
+  id: number
+  section_type: 'dialogue' | 'reading'
+  title: string
+  content: string
+  translation: string
+}
+
+export interface LessonVocabulary {
+  word: string
+  phonetic: string | null
+  part_of_speech: string | null
+  meaning: string
+  example: string
+  example_translation: string
+}
+
+export interface LessonQuestion {
+  id: number
+  question: string
+  options: Record<string, string>
+  correct_answer: string
+  explanation: string
+}
+
+export interface Lesson {
+  id: number
+  unit_number: number
+  lesson_number: number
+  title: string
+  subtitle: string
+  level: string
+  objectives: string[]
+  estimated_minutes: number
+  completed: boolean
+  score: number | null
+  sections: LessonSection[]
+  vocabulary: LessonVocabulary[]
+  questions: LessonQuestion[]
+}
+
+export interface LessonResult {
+  lesson_id: number
+  score: number
+  correct_count: number
+  question_count: number
+  completed: boolean
+}
+
+export async function getLesson(lessonId: number): Promise<Lesson> {
+  const response = await fetch(`/api/lessons/${lessonId}`)
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
+export async function completeLesson(lessonId: number, answers: Record<string, string>): Promise<LessonResult> {
+  const response = await fetch(`/api/lessons/${lessonId}/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answers }),
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}

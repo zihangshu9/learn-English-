@@ -22,7 +22,7 @@ const nextTask = computed(() => dashboard.value?.tasks.find((task) => task.statu
 const taskRoutes: Record<string, string> = {
   word_review: '/vocabulary',
   new_words: '/vocabulary',
-  reading: '/papers',
+  reading: '/lessons/1',
   mistake_review: '/mistakes',
 }
 

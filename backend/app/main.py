@@ -13,13 +13,14 @@ from .config import Settings, get_settings
 from .db import Database
 from .schemas import (
     AiSettingsUpdate, AiStatusResponse, DashboardResponse, ExplainMistakeRequest,
-    ExplainMistakeResponse, WordReviewRequest, WordReviewResponse, WordSessionResponse,
+    ExplainMistakeResponse, LessonCompleteRequest, LessonCompleteResponse, LessonResponse,
+    WordReviewRequest, WordReviewResponse, WordSessionResponse,
 )
 
 
 settings = get_settings()
 database = Database(settings.database_file)
-APP_API_VERSION = 2
+APP_API_VERSION = 3
 
 # Windows can inherit an incorrect `.js` MIME mapping from the registry.
 # ES module scripts are blocked by browsers unless they are served as JavaScript.
@@ -57,6 +58,22 @@ def get_word_session(limit: int = 15) -> dict:
 def review_word(word_id: int, payload: WordReviewRequest) -> dict:
     try:
         return database.review_word(word_id, payload.result, payload.response_seconds)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.get("/api/lessons/{lesson_id}", response_model=LessonResponse)
+def get_lesson(lesson_id: int) -> dict:
+    try:
+        return database.lesson(lesson_id)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.post("/api/lessons/{lesson_id}/complete", response_model=LessonCompleteResponse)
+def complete_lesson(lesson_id: int, payload: LessonCompleteRequest) -> dict:
+    try:
+        return database.complete_lesson(lesson_id, payload.answers)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 

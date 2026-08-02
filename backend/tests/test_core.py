@@ -19,7 +19,7 @@ def test_database_initializes_dashboard(tmp_path: Path) -> None:
 
 def test_health_response() -> None:
     assert health()["status"] == "ok"
-    assert health()["api_version"] == 2
+    assert health()["api_version"] == 3
     assert isinstance(health()["pid"], int)
 
 
@@ -44,13 +44,28 @@ def test_word_session_and_review(tmp_path: Path) -> None:
         )
 
     session = database.word_session(15)
-    assert session["new_count"] == 1
-    assert session["words"][0]["word"] == "abandon"
+    assert session["new_count"] == 11
+    assert [item["word"] for item in session["words"][:3]] == ["plan", "goal", "possible"]
+    abandon = next(item for item in session["words"] if item["word"] == "abandon")
 
-    result = database.review_word(session["words"][0]["id"], "known", 2)
+    result = database.review_word(abandon["id"], "known", 2)
     assert result["interval_days"] == 3
     with database.connect() as connection:
         progress = connection.execute("SELECT * FROM word_progress").fetchone()
         log = connection.execute("SELECT * FROM word_review_logs").fetchone()
     assert progress["review_count"] == 1
     assert log["result"] == "known"
+
+
+def test_lesson_can_be_completed(tmp_path: Path) -> None:
+    database = Database(tmp_path / "test.db")
+    database.initialize()
+    lesson = database.lesson(1)
+    assert lesson["title"] == "A Small Plan That Works"
+    assert len(lesson["sections"]) == 2
+    assert [item["word"] for item in lesson["vocabulary"][:3]] == ["plan", "goal", "possible"]
+
+    answers = {str(question["id"]): question["correct_answer"] for question in lesson["questions"]}
+    result = database.complete_lesson(1, answers)
+    assert result["score"] == 100
+    assert database.lesson(1)["completed"] is True

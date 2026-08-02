@@ -108,3 +108,56 @@ class WordReviewResponse(BaseModel):
     familiarity: float
     interval_days: int
     next_review_at: str
+
+
+class LessonSection(BaseModel):
+    id: int
+    section_type: str
+    title: str
+    content: str
+    translation: str
+
+
+class LessonVocabulary(BaseModel):
+    word: str
+    phonetic: str | None = None
+    part_of_speech: str | None = None
+    meaning: str
+    example: str
+    example_translation: str
+
+
+class LessonQuestion(BaseModel):
+    id: int
+    question: str
+    options: dict[str, str]
+    correct_answer: str
+    explanation: str
+
+
+class LessonResponse(BaseModel):
+    id: int
+    unit_number: int
+    lesson_number: int
+    title: str
+    subtitle: str
+    level: str
+    objectives: list[str]
+    estimated_minutes: int
+    completed: bool
+    score: int | None = None
+    sections: list[LessonSection]
+    vocabulary: list[LessonVocabulary]
+    questions: list[LessonQuestion]
+
+
+class LessonCompleteRequest(BaseModel):
+    answers: dict[str, str]
+
+
+class LessonCompleteResponse(BaseModel):
+    lesson_id: int
+    score: int
+    correct_count: int
+    question_count: int
+    completed: bool
