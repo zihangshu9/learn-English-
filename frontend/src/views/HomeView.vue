@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { getDashboard, type Dashboard } from '../api'
 
+const router = useRouter()
 const dashboard = ref<Dashboard | null>(null)
 const usingDemo = ref(false)
 const loading = ref(true)
@@ -15,6 +17,19 @@ onMounted(async () => {
 
 const totalMinutes = computed(() => dashboard.value?.tasks.reduce((sum, task) => sum + task.estimated_minutes, 0) ?? 0)
 const completedTasks = computed(() => dashboard.value?.tasks.filter((task) => task.status === 'completed').length ?? 0)
+const nextTask = computed(() => dashboard.value?.tasks.find((task) => task.status !== 'completed') ?? null)
+
+const taskRoutes: Record<string, string> = {
+  word_review: '/vocabulary',
+  new_words: '/vocabulary',
+  reading: '/papers',
+  mistake_review: '/mistakes',
+}
+
+function startLearning() {
+  if (!nextTask.value) return
+  router.push(taskRoutes[nextTask.value.task_type] ?? '/vocabulary')
+}
 </script>
 
 <template>
@@ -57,7 +72,9 @@ const completedTasks = computed(() => dashboard.value?.tasks.filter((task) => ta
 
         <div class="today-footer">
           <span>已完成 {{ completedTasks }} / {{ dashboard.tasks.length }} 项</span>
-          <button class="primary-button">开始今日学习 →</button>
+          <button class="primary-button" :disabled="!nextTask" @click="startLearning">
+            {{ nextTask ? '开始今日学习 →' : '今日任务已完成' }}
+          </button>
         </div>
       </section>
 
@@ -99,6 +116,7 @@ const completedTasks = computed(() => dashboard.value?.tasks.filter((task) => ta
 .task-status { padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 11px; }
 .task-status.completed { color: var(--green); background: var(--green-soft); border-color: transparent; }
 .today-footer { display: flex; justify-content: space-between; align-items: center; padding: 20px 30px 26px; background: #f8f5ed; color: var(--muted); font-size: 13px; }
+.today-footer button:disabled { cursor: default; opacity: .55; }
 .insight-grid { display: grid; grid-template-columns: .8fr 1.4fr 1fr; gap: 16px; margin-top: 18px; }
 .insight-card, .quote-card, .date-card { min-height: 155px; padding: 24px; }
 .insight-label { color: var(--muted); font-size: 12px; }
