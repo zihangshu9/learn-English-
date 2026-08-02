@@ -19,6 +19,8 @@ def test_database_initializes_dashboard(tmp_path: Path) -> None:
 
 def test_health_response() -> None:
     assert health()["status"] == "ok"
+    assert health()["api_version"] == 2
+    assert isinstance(health()["pid"], int)
 
 
 def test_ai_cache_hash_is_stable() -> None:

@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import mimetypes
+import os
 from pathlib import Path
 import sys
 
@@ -18,6 +19,7 @@ from .schemas import (
 
 settings = get_settings()
 database = Database(settings.database_file)
+APP_API_VERSION = 2
 
 # Windows can inherit an incorrect `.js` MIME mapping from the registry.
 # ES module scripts are blocked by browsers unless they are served as JavaScript.
@@ -37,8 +39,8 @@ app.add_middleware(CORSMiddleware, allow_origins=["http://127.0.0.1:5173", "http
 
 
 @app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "app": settings.app_name}
+def health() -> dict[str, str | int]:
+    return {"status": "ok", "app": settings.app_name, "api_version": APP_API_VERSION, "pid": os.getpid()}
 
 
 @app.get("/api/dashboard", response_model=DashboardResponse)

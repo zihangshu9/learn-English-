@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import logging
+import json
+import os
+import signal
 import threading
 import time
 import urllib.error
@@ -12,7 +15,7 @@ import webbrowser
 import uvicorn
 
 from app.config import app_data_dir
-from app.main import app
+from app.main import APP_API_VERSION, app
 
 
 HOST = "127.0.0.1"
@@ -20,12 +23,35 @@ PORT = 8000
 URL = f"http://{HOST}:{PORT}"
 
 
-def app_is_running() -> bool:
+def running_server() -> dict | None:
     try:
         with urllib.request.urlopen(f"{URL}/api/health", timeout=1) as response:
-            return response.status == 200
-    except (urllib.error.URLError, TimeoutError):
-        return False
+            if response.status == 200:
+                return json.load(response)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        pass
+    return None
+
+
+def app_is_running() -> bool:
+    server = running_server()
+    return bool(server and server.get("api_version") == APP_API_VERSION)
+
+
+def stop_incompatible_instance(server: dict) -> None:
+    pid = server.get("pid")
+    if server.get("app") != "拾词 API" or not isinstance(pid, int) or pid == os.getpid():
+        return
+    logging.info("Stopping incompatible desktop instance pid=%s api_version=%s", pid, server.get("api_version"))
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except (OSError, PermissionError):
+        logging.exception("Could not stop incompatible desktop instance pid=%s", pid)
+        return
+    for _ in range(20):
+        if running_server() is None:
+            return
+        time.sleep(0.1)
 
 
 def open_when_ready() -> None:
@@ -44,9 +70,12 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
-    if app_is_running():
+    server = running_server()
+    if server and server.get("api_version") == APP_API_VERSION:
         webbrowser.open(URL)
         return
+    if server:
+        stop_incompatible_instance(server)
     threading.Thread(target=open_when_ready, daemon=True).start()
     uvicorn.run(app, host=HOST, port=PORT, log_level="warning", access_log=False)
 
