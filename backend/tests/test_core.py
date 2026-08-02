@@ -31,3 +31,24 @@ def test_ai_cache_hash_is_stable() -> None:
     )
     assert request_hash(payload, "deepseek-v4-flash") == request_hash(payload, "deepseek-v4-flash")
     assert request_hash(payload, "deepseek-v4-flash") != request_hash(payload, "deepseek-v4-pro")
+
+
+def test_word_session_and_review(tmp_path: Path) -> None:
+    database = Database(tmp_path / "test.db")
+    database.initialize()
+    with database.connect() as connection:
+        connection.execute(
+            "INSERT INTO words(word,meaning,created_at) VALUES('abandon','vt. 放弃','2026-01-01')"
+        )
+
+    session = database.word_session(15)
+    assert session["new_count"] == 1
+    assert session["words"][0]["word"] == "abandon"
+
+    result = database.review_word(session["words"][0]["id"], "known", 2)
+    assert result["interval_days"] == 3
+    with database.connect() as connection:
+        progress = connection.execute("SELECT * FROM word_progress").fetchone()
+        log = connection.execute("SELECT * FROM word_review_logs").fetchone()
+    assert progress["review_count"] == 1
+    assert log["result"] == "known"

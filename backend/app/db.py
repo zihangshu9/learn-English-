@@ -149,12 +149,49 @@ class Database:
 
     def dashboard(self) -> dict:
         today = date.today()
+        now = datetime.now().isoformat(timespec="seconds")
         with self.connect() as connection:
             plan = connection.execute(
                 "SELECT * FROM study_plans WHERE status='active' ORDER BY id LIMIT 1"
             ).fetchone()
             if not plan:
                 raise RuntimeError("没有可用的学习计划")
+            total_words = connection.execute("SELECT COUNT(*) FROM words WHERE level='CET4'").fetchone()[0]
+            learned_words = connection.execute(
+                "SELECT COUNT(*) FROM word_progress WHERE status!='unlearned'"
+            ).fetchone()[0]
+            due_words = connection.execute(
+                "SELECT COUNT(*) FROM word_progress WHERE status!='unlearned' AND next_review_at<=?", (now,)
+            ).fetchone()[0]
+            word_task_progress = {
+                row["task_type"]: row["completed_count"] for row in connection.execute(
+                    """SELECT task_type,completed_count FROM daily_tasks
+                    WHERE plan_id=? AND task_date=? AND task_type IN ('word_review','new_words')""",
+                    (plan["id"], today.isoformat()),
+                ).fetchall()
+            }
+            review_target = min(20, due_words + word_task_progress.get("word_review", 0))
+            new_limit = min(plan["new_words_limit"], max(total_words - learned_words, 0)
+                            + word_task_progress.get("new_words", 0))
+            connection.execute(
+                """UPDATE daily_tasks SET target_count=?, status=CASE
+                WHEN completed_count>=? THEN 'completed'
+                WHEN completed_count>0 THEN 'in_progress' ELSE 'pending' END
+                WHERE plan_id=? AND task_date=? AND task_type='word_review'""",
+                (review_target, review_target, plan["id"], today.isoformat()),
+            )
+            connection.execute(
+                """UPDATE daily_tasks SET target_count=?, status=CASE
+                WHEN completed_count>=? THEN 'completed'
+                WHEN completed_count>0 THEN 'in_progress' ELSE 'pending' END
+                WHERE plan_id=? AND task_date=? AND task_type='new_words'""",
+                (new_limit, new_limit, plan["id"], today.isoformat()),
+            )
+            progress_percent = round(learned_words * 100 / total_words, 1) if total_words else 0
+            connection.execute(
+                "UPDATE study_plans SET progress_percent=?,updated_at=? WHERE id=?",
+                (progress_percent, now, plan["id"]),
+            )
             tasks = connection.execute(
                 "SELECT * FROM daily_tasks WHERE plan_id=? AND task_date=? ORDER BY id",
                 (plan["id"], today.isoformat()),
@@ -162,9 +199,84 @@ class Database:
             target = date.fromisoformat(plan["target_completion_date"])
             return {
                 "plan_name": plan["name"], "target_completion_date": plan["target_completion_date"],
-                "days_remaining": max((target - today).days, 0), "progress_percent": plan["progress_percent"],
+                "days_remaining": max((target - today).days, 0), "progress_percent": progress_percent,
                 "streak_days": self._study_streak(connection, today), "tasks": [dict(task) for task in tasks],
             }
+
+    def word_session(self, limit: int) -> dict:
+        now = datetime.now().isoformat(timespec="seconds")
+        with self.connect() as connection:
+            due = connection.execute(
+                """SELECT w.*, p.status, p.review_count FROM words w
+                JOIN word_progress p ON p.word_id=w.id
+                WHERE p.status!='unlearned' AND p.next_review_at<=?
+                ORDER BY p.next_review_at, w.id LIMIT ?""",
+                (now, limit),
+            ).fetchall()
+            remaining = limit - len(due)
+            new = connection.execute(
+                """SELECT w.*, COALESCE(p.status,'unlearned') status,
+                COALESCE(p.review_count,0) review_count FROM words w
+                LEFT JOIN word_progress p ON p.word_id=w.id
+                WHERE p.word_id IS NULL OR p.status='unlearned'
+                ORDER BY w.frequency DESC, w.id LIMIT ?""",
+                (remaining,),
+            ).fetchall() if remaining else []
+        rows = [*due, *new]
+        fields = ("id", "word", "phonetic", "meaning", "part_of_speech", "example",
+                  "example_translation", "status", "review_count")
+        return {
+            "words": [{field: row[field] for field in fields} for row in rows],
+            "review_count": len(due),
+            "new_count": len(new),
+        }
+
+    def review_word(self, word_id: int, result: str, response_seconds: int | None) -> dict:
+        now = datetime.now()
+        now_text = now.isoformat(timespec="seconds")
+        with self.connect() as connection:
+            word = connection.execute("SELECT id FROM words WHERE id=?", (word_id,)).fetchone()
+            if not word:
+                raise ValueError("单词不存在")
+            progress = connection.execute(
+                "SELECT * FROM word_progress WHERE word_id=?", (word_id,)
+            ).fetchone()
+            was_new = not progress or progress["status"] == "unlearned"
+            old_interval = progress["interval_days"] if progress else 0
+            if result == "known":
+                interval = 3 if old_interval == 0 else min(max(old_interval * 2, 3), 90)
+                familiarity, status, correct, wrong = 1.0, "learning", 1, 0
+            elif result == "fuzzy":
+                interval = 1
+                familiarity, status, correct, wrong = 0.55, "learning", 0, 1
+            else:
+                interval = 0
+                familiarity, status, correct, wrong = 0.2, "learning", 0, 1
+            next_review = now + (timedelta(minutes=10) if interval == 0 else timedelta(days=interval))
+            connection.execute(
+                """INSERT INTO word_progress(word_id,status,familiarity,first_learned_at,last_reviewed_at,
+                next_review_at,review_count,correct_count,wrong_count,interval_days)
+                VALUES(?,?,?,?,?,?,1,?,?,?) ON CONFLICT(word_id) DO UPDATE SET
+                status=excluded.status,familiarity=excluded.familiarity,last_reviewed_at=excluded.last_reviewed_at,
+                next_review_at=excluded.next_review_at,review_count=word_progress.review_count+1,
+                correct_count=word_progress.correct_count+excluded.correct_count,
+                wrong_count=word_progress.wrong_count+excluded.wrong_count,interval_days=excluded.interval_days""",
+                (word_id, status, familiarity, now_text, now_text,
+                 next_review.isoformat(timespec="seconds"), correct, wrong, interval),
+            )
+            connection.execute(
+                "INSERT INTO word_review_logs(word_id,result,response_seconds,reviewed_at) VALUES(?,?,?,?)",
+                (word_id, result, response_seconds, now_text),
+            )
+            task_type = "new_words" if was_new else "word_review"
+            connection.execute(
+                """UPDATE daily_tasks SET completed_count=MIN(completed_count+1,target_count),
+                status=CASE WHEN completed_count+1>=target_count THEN 'completed' ELSE 'in_progress' END
+                WHERE task_date=? AND task_type=?""",
+                (date.today().isoformat(), task_type),
+            )
+        return {"word_id": word_id, "status": status, "familiarity": familiarity,
+                "interval_days": interval, "next_review_at": next_review.isoformat(timespec="seconds")}
 
     @staticmethod
     def _study_streak(connection: sqlite3.Connection, today: date) -> int:

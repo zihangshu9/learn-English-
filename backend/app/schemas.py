@@ -77,3 +77,34 @@ class AiStatusResponse(BaseModel):
 class AiSettingsUpdate(BaseModel):
     api_key: str | None = None
     model: Literal["deepseek-v4-flash", "deepseek-v4-pro"]
+
+
+class WordCard(BaseModel):
+    id: int
+    word: str
+    phonetic: str | None = None
+    meaning: str
+    part_of_speech: str | None = None
+    example: str | None = None
+    example_translation: str | None = None
+    status: str
+    review_count: int
+
+
+class WordSessionResponse(BaseModel):
+    words: list[WordCard]
+    review_count: int
+    new_count: int
+
+
+class WordReviewRequest(BaseModel):
+    result: Literal["unknown", "fuzzy", "known"]
+    response_seconds: int | None = Field(default=None, ge=0)
+
+
+class WordReviewResponse(BaseModel):
+    word_id: int
+    status: str
+    familiarity: float
+    interval_days: int
+    next_review_at: str

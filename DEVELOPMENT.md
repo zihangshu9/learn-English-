@@ -28,6 +28,15 @@ pnpm dev
 
 在当前电脑上，也可以双击 `backend/start_desktop.vbs`，无窗口启动完整本地应用并自动打开浏览器。
 
+## 导入四级词汇
+
+词库导入脚本会以 UTF-8 读取 JSON，清除 BOM、修正常见 OCR 字符，并过滤空值与重复项。重复执行会更新已有单词，不会重复插入：
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe scripts\import_cet4_words.py "..\参考资料\Vocabulary-of-CET-4-master\Vocabulary-of-CET-4-master\JSON"
+```
+
 ## DeepSeek
 
 复制 `backend/.env.example` 为 `backend/.env`，然后填写 `DEEPSEEK_API_KEY`。

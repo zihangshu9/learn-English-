@@ -62,3 +62,36 @@ export async function saveAiSettings(apiKey: string, model: string): Promise<AiS
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   return response.json()
 }
+
+export interface WordCard {
+  id: number
+  word: string
+  phonetic: string | null
+  meaning: string
+  part_of_speech: string | null
+  example: string | null
+  example_translation: string | null
+  status: string
+  review_count: number
+}
+
+export interface WordSession {
+  words: WordCard[]
+  review_count: number
+  new_count: number
+}
+
+export async function getWordSession(limit = 15): Promise<WordSession> {
+  const response = await fetch(`/api/words/session?limit=${limit}`)
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
+export async function reviewWord(wordId: number, result: 'unknown' | 'fuzzy' | 'known'): Promise<void> {
+  const response = await fetch(`/api/words/${wordId}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ result }),
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+}

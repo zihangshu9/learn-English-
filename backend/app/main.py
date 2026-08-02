@@ -3,14 +3,17 @@ import mimetypes
 from pathlib import Path
 import sys
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from .ai import explain_mistake
 from .config import Settings, get_settings
 from .db import Database
-from .schemas import AiSettingsUpdate, AiStatusResponse, DashboardResponse, ExplainMistakeRequest, ExplainMistakeResponse
+from .schemas import (
+    AiSettingsUpdate, AiStatusResponse, DashboardResponse, ExplainMistakeRequest,
+    ExplainMistakeResponse, WordReviewRequest, WordReviewResponse, WordSessionResponse,
+)
 
 
 settings = get_settings()
@@ -41,6 +44,19 @@ def health() -> dict[str, str]:
 @app.get("/api/dashboard", response_model=DashboardResponse)
 def get_dashboard() -> dict:
     return database.dashboard()
+
+
+@app.get("/api/words/session", response_model=WordSessionResponse)
+def get_word_session(limit: int = 15) -> dict:
+    return database.word_session(max(1, min(limit, 50)))
+
+
+@app.post("/api/words/{word_id}/review", response_model=WordReviewResponse)
+def review_word(word_id: int, payload: WordReviewRequest) -> dict:
+    try:
+        return database.review_word(word_id, payload.result, payload.response_seconds)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @app.get("/api/ai/status", response_model=AiStatusResponse)
