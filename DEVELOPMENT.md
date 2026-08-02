@@ -26,6 +26,8 @@ pnpm dev
 
 页面地址：`http://127.0.0.1:5173`。
 
+在当前电脑上，也可以双击 `backend/start_desktop.vbs`，无窗口启动完整本地应用并自动打开浏览器。
+
 ## DeepSeek
 
 复制 `backend/.env.example` 为 `backend/.env`，然后填写 `DEEPSEEK_API_KEY`。

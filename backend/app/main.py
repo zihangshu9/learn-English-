@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import mimetypes
 from pathlib import Path
 import sys
 
@@ -14,6 +15,11 @@ from .schemas import AiSettingsUpdate, AiStatusResponse, DashboardResponse, Expl
 
 settings = get_settings()
 database = Database(settings.database_file)
+
+# Windows can inherit an incorrect `.js` MIME mapping from the registry.
+# ES module scripts are blocked by browsers unless they are served as JavaScript.
+mimetypes.add_type("application/javascript", ".js", strict=True)
+mimetypes.add_type("application/javascript", ".js", strict=False)
 
 
 @asynccontextmanager
